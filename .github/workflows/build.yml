@@ -59,7 +59,7 @@ jobs:
 
       - name: Build the xiaomi-pipa with KDE Plasma Desktop
         run: |
-           pmbootstrap zap
+           pmbootstrap zap | yes
            rm -r out/*
            pmbootstrap install --password 147147 --add postmarketos-ui-plasma-desktop
            cat /home/runner/.local/var/pmbootstrap/log.txt
