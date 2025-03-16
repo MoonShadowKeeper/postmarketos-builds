@@ -21,7 +21,7 @@ jobs:
             mkdir out
         
       - name: Substitute placeholders in configs
-         run: |
+        run: |
            find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
 
 
