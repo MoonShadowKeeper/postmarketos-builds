@@ -1,52 +1,68 @@
 name: Build pipa images
+
 on:
-  push: # Build when push
-  workflow_dispatch:
+  push: # Запускать сборку при каждом push
+  workflow_dispatch: # Позволяет запускать рабочий процесс вручную из интерфейса GitHub
   schedule:
-    - cron: '0 0 * * 5' # Start build every friday
+    - cron: '0 0 * * 5' # Запускать сборку каждую пятницу в 00:00 UTC
 
 jobs:
   build-image:
     strategy:
       matrix:
-        version: ["default"]
+        # В данном случае 'default' используется как заглушка,
+        # если у вас будут разные конфигурации или версии в будущем.
+        version: ["default"] 
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # Выполнение на последней версии Ubuntu
+
     steps:
       - name: Check out build configurations
-        uses: actions/checkout@v4
-        
+        uses: actions/checkout@v4 # Извлечение кода репозитория
+
       - name: Create artifact directory
         run: |
-            mkdir out
-        
+            mkdir out # Создание каталога для выходных артефактов
+
       - name: Substitute placeholders in configs
         run: |
+           # Замена заполнителей в cfg-файлах.
+           # $HOME и $(nproc) будут заменены на актуальные значения.
            find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
 
       - name: Install pmbootstrap from git
         run: |
+          # Клонирование pmbootstrap и создание символической ссылки для его использования
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
           ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
-          pmbootstrap --version
+          pmbootstrap --version # Проверка установки pmbootstrap
 
       - name: Set up pmaports
         run: |
-          echo -e '\n\n' | pmbootstrap init || true
+          # Инициализация pmbootstrap (игнорируем ошибки, если уже инициализировано)
+          echo -e '\n\n' | pmbootstrap init || true 
           cd ~/.local/var/pmbootstrap/cache_git/pmaports
           ls -A
           git remote
+          # Добавление удаленного репозитория pipa-project и получение его последней версии
           git remote add pipa https://github.com/pipa-project/pmaports-pipa.git
           DEFAULT_BRANCH=$(git remote show pipa | awk '/HEAD branch/ {print $NF}')
           git fetch pipa $DEFAULT_BRANCH
-          git reset --hard pipa/$DEFAULT_BRANCH
+          git reset --hard pipa/$DEFAULT_BRANCH # Сброс до последней версии ветки pipa
 
       - name: Build the xiaomi-pipa without DE
         run: |
+           # Очистка каталога 'out' перед каждой сборкой для гарантии чистоты
+           rm -rf out/* || true 
+           # Копирование файла конфигурации после каждой потенциальной очистки pmbootstrap zap
            cp xiaomi-pipa.cfg ~/.config/pmbootstrap_v3.cfg
-           pmbootstrap install --password 147147
-           pmbootstrap export
+           # Установка пакетов. 'yes |' автоматически подтверждает запросы.
+           yes | pmbootstrap install --password 147147 
+           # Вывод лога pmbootstrap для отладки
+           cat /home/runner/.local/var/pmbootstrap/log.txt
+           pmbootstrap export # Экспорт образа
+           # Копирование созданных образов в каталог 'out'
            cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-pipa.img
            cp /tmp/postmarketOS-export/xiaomi-pipa.img out/rootfs-xiaomi-pipa-none.img
            
@@ -54,15 +70,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
            name: xiaomi-pipa-none
-           path: out/*.img*
-           retention-days: 7
+           path: out/*.img* # Загрузка всех файлов .img и .img*
+           retention-days: 7 # Хранение артефактов 7 дней
 
       - name: Build the xiaomi-pipa with KDE Plasma Desktop
         run: |
-           yes | pmbootstrap zap
-           rm -r out/*
-           pmbootstrap install --password 147147 --add postmarketos-ui-plasma-desktop
-           cat /home/runner/.local/var/pmbootstrap/log.txt
+           yes | pmbootstrap zap # Очистка pmbootstrap среды для новой сборки
+           rm -rf out/* # Очистка каталога 'out'
+           cp xiaomi-pipa.cfg ~/.config/pmbootstrap_v3.cfg # Повторное копирование конфигурации
+           # Установка с KDE Plasma. 'yes |' подтверждает, --add добавляет DE.
+           yes | pmbootstrap install --password 147147 --add postmarketos-ui-plasma-desktop
+           cat /home/runner/.local/var/pmbootstrap/log.txt # Вывод лога
            pmbootstrap export
            cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-pipa.img
            cp /tmp/postmarketOS-export/xiaomi-pipa.img out/rootfs-xiaomi-pipa-plasma.img
@@ -76,9 +94,12 @@ jobs:
             
       - name: Build the xiaomi-pipa with GNOME
         run: |
-           yes | pmbootstrap zap
-           rm -r out/*
-           pmbootstrap install --password 147147 --add postmarketos-ui-gnome
+           yes | pmbootstrap zap # Очистка pmbootstrap среды
+           rm -rf out/* # Очистка каталога 'out'
+           cp xiaomi-pipa.cfg ~/.config/pmbootstrap_v3.cfg # Повторное копирование конфигурации
+           # Установка с GNOME
+           yes | pmbootstrap install --password 147147 --add postmarketos-ui-gnome
+           cat /home/runner/.local/var/pmbootstrap/log.txt # Вывод лога
            pmbootstrap export
            cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-pipa.img
            cp /tmp/postmarketOS-export/xiaomi-pipa.img out/rootfs-xiaomi-pipa-gnome.img
@@ -89,10 +110,3 @@ jobs:
            name: xiaomi-pipa-gnome
            path: out/*.img*
            retention-days: 7
-            
-
-
-
-        
-
-        
